@@ -16,6 +16,7 @@ FPS = 60
 class Boid():
     def __init__(self, center):
         self.size = 20
+        self.vision = 100
         self.center = center
         self.velocity = 180 / FPS
 
@@ -62,7 +63,8 @@ class Boid():
         self.go_to_dest()
         # self.update_vector()
         self.get_neighbors()
-        # self.separation()
+        # self.cohesion()
+        self.separation()
         screen.move_boid(self)
         self.compute_points()
         # self.compute_points()
@@ -81,7 +83,7 @@ class Boid():
         return math.sqrt((thisx - otherx)**2 + (thisy - othery)**2)
 
     def get_neighbors(self):
-        visionrange = 100
+        visionrange = self.vision
         for boid in boids:
             if self.get_distance(boid) <= visionrange and boid not in self.neighbors:
                 self.neighbors.append(boid)
@@ -95,44 +97,46 @@ class Boid():
                 boid.color = WHITE
                 self.color = WHITE
 
+    def cohesion(self):
+        # self.dest_card = self.center
+        totalx, totaly = 0, 0
+        count = 0
+        for boid in self.neighbors:
+            x = boid.center[0]
+            y = boid.center[1]
+            totalx, totaly = totalx + x, totaly + y
+            count += 1
+
+        avgx, avgy = totalx / count, totaly / count
+
+        self.dest_card = (avgx, avgy)
+
     def separation(self):
-        destination = (0, 0)
+        self.dest_card = self.center
         if self.neighbors:
             for boid in self.neighbors:
                 x = self.center[0] - boid.center[0]
                 y = self.center[1] - boid.center[1]
-                destvector = screen.cartesian_to_polar((x, y))
-
-        if destination != (0, 0):
-            # print(destination)
-            self.dest_card = screen.cartesian_to_polar(destination)
-            # strength = 1/polar_dest[0]
-            # print(polar_dest[1] * strength)
-            # self.rel_polar = (self.rel_polar[0], self.rel_polar[1] + polar_dest[1] * strength)
-            # self.rel_polar = (polar_dest[0], self.rel_polar[1] + (polar_dest[1]/polar_dest[0]))
+                self.dest_card = (self.dest_card[0] + x, self.dest_card[1] + y)
 
     def go_to_dest(self):
-        reldest = (self.dest_card[0] - self.center[0], -(self.dest_card[1] - self.center[1]))
-        destdegree = math.degrees(screen.cartesian_to_polar(reldest)[1])
-        # if destdegree > 360:
-        #     print(destdegree)
-        #     print("This shouldn't happen")
-        #     quit()
-        mydegree = math.degrees(self.rel_polar[1])
-        # opposite = (mydegree + 180) % 360
-
-        # print(f"Dest Degree: {destdegree}, My Degree: {mydegree}")
-
         left = screen.polar_to_cartesian(self.center, (self.velocity, math.radians(math.degrees(self.rel_polar[1]) - 1)))
         right = screen.polar_to_cartesian(self.center, (self.velocity, math.radians(math.degrees(self.rel_polar[1]) + 1)))
 
         distanceleft = math.sqrt((left[0] - self.dest_card[0])**2 + (left[1] - self.dest_card[1])**2)
         distanceright = math.sqrt((right[0] - self.dest_card[0]) ** 2 + (right[1] - self.dest_card[1]) ** 2)
 
+        polar = screen.cartesian_to_polar(self.dest_card)
+        strength = 1000/polar[0]
+        print(polar[0], strength)
+
+        # if polar[1] > 700 and polar[1] < 800:
+        #     strength = 90
+
         if distanceleft > distanceright:
-            self.rel_polar = (self.velocity, math.radians(math.degrees(self.rel_polar[1]) + 1))
+            self.rel_polar = (self.velocity, math.radians(math.degrees(self.rel_polar[1]) + strength))
         else:
-            self.rel_polar = (self.velocity, math.radians(math.degrees(self.rel_polar[1]) - 1))
+            self.rel_polar = (self.velocity, math.radians(math.degrees(self.rel_polar[1]) - strength))
 
 class Canvas():
     def __init__(self):
@@ -363,7 +367,10 @@ def check_mouse(mouse):
 running = True
 screen = Canvas()
 
-for x in range(10):
+test = [(500, 500), (450, 500), (500, 450)]
+
+for x in range(20):
+    # center = x
     center = (random.randrange(0, 1000), random.randrange(0, 1000))
     # center = (500, 500)
     boid = Boid(center)
