@@ -15,10 +15,14 @@ FPS = 60
 
 class Boid():
     def __init__(self, center):
-        self.size = 20
+        self.size = 5
         self.vision = 100
         self.center = center
         self.velocity = 180 / FPS
+
+        self.cohesionX = 1
+        self.separationX = 0.25
+        self.alignmentX = 1
 
         self.rel_polar = (self.velocity, math.radians(90))
         self.rel_card = (random.randrange(-1 * screen.width, screen.width), random.randrange(-1 * screen.height, screen.height))
@@ -63,7 +67,8 @@ class Boid():
         self.go_to_dest()
         # self.update_vector()
         self.get_neighbors()
-        # self.cohesion()
+        self.alignment()
+        self.cohesion()
         self.separation()
         screen.move_boid(self)
         self.compute_points()
@@ -97,6 +102,18 @@ class Boid():
                 boid.color = WHITE
                 self.color = WHITE
 
+    def alignment(self):
+        degree = 0
+        count = 0
+        for boid in self.neighbors:
+            degree += math.degrees(boid.rel_polar[1])
+            count += 1
+
+        degreeavg = degree / count
+
+        self.rel_polar = (self.velocity, math.radians(degreeavg))
+
+
     def cohesion(self):
         # self.dest_card = self.center
         totalx, totaly = 0, 0
@@ -109,15 +126,15 @@ class Boid():
 
         avgx, avgy = totalx / count, totaly / count
 
-        self.dest_card = (avgx, avgy)
+        self.dest_card = (avgx * self.cohesionX, avgy * self.cohesionX)
 
     def separation(self):
-        self.dest_card = self.center
+        # self.dest_card = self.center
         if self.neighbors:
             for boid in self.neighbors:
                 x = self.center[0] - boid.center[0]
                 y = self.center[1] - boid.center[1]
-                self.dest_card = (self.dest_card[0] + x, self.dest_card[1] + y)
+                self.dest_card = (self.dest_card[0] + x * self.separationX, self.dest_card[1] + y * self.separationX)
 
     def go_to_dest(self):
         left = screen.polar_to_cartesian(self.center, (self.velocity, math.radians(math.degrees(self.rel_polar[1]) - 1)))
@@ -128,7 +145,7 @@ class Boid():
 
         polar = screen.cartesian_to_polar(self.dest_card)
         strength = 1000/polar[0]
-        print(polar[0], strength)
+        # print(polar[0], strength)
 
         # if polar[1] > 700 and polar[1] < 800:
         #     strength = 90
@@ -369,7 +386,7 @@ screen = Canvas()
 
 test = [(500, 500), (450, 500), (500, 450)]
 
-for x in range(20):
+for x in range(100):
     # center = x
     center = (random.randrange(0, 1000), random.randrange(0, 1000))
     # center = (500, 500)
