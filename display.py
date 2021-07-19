@@ -8,8 +8,10 @@ BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 GREEN = (0, 255, 0)
+GREY = (150, 150, 150)
 
 boids = []
+grouping = []
 
 FPS = 60
 
@@ -18,37 +20,67 @@ class Boid():
         self.size = 5
         self.vision = 100
         self.center = center
-        self.velocity = 180 / FPS
+        self.velocity = 90 / FPS
 
         self.cohesionX = 1
-        self.separationX = 0.25
+        self.separationX = 1
         self.alignmentX = 1
 
         self.rel_polar = (self.velocity, math.radians(90))
         self.rel_card = (random.randrange(-1 * screen.width, screen.width), random.randrange(-1 * screen.height, screen.height))
         self.dest_card = (500, 500)
 
+        self.boxindex = None
+
+        self.highlight = False
+
         # print(f"Start Dest: {math.degrees(screen.cartesian_to_polar((self.dest_card[0] - self.center[0], self.dest_card[1] - self.center[1]))[1])}, Start MyDegree: {math.degrees(self.rel_polar[1])}")
 
-        self.vertex_a = None
-        self.vertex_b = None
-        self.vertex_c = None
+        # The vertices to draw for the boid
         self.points = []
-        self.compute_points()
-        # print(self.points)
+        self.neighbors = []
 
         self.color = WHITE
-        self.neighbors = []
 
         boids.append(self)
 
-    def compute_points(self):
-        self.vertex_a = screen.polar_to_cartesian(self.center, (self.size, self.rel_polar[1]))
-        distance = math.sqrt(self.size**2 + self.size**2)
-        self.vertex_b = screen.polar_to_cartesian(self.center, (distance, math.radians(math.degrees(self.rel_polar[1]) + 135)))
-        self.vertex_c = screen.polar_to_cartesian(self.center, (distance, math.radians(math.degrees(self.rel_polar[1]) - 135)))
+    def group_boid(self):
+        # Place the boid in a particular box depending on it's center location
+        x = self.center[0] // screen.columnsize
+        y = self.center[1] // screen.rowsize
 
-        self.points = [self.vertex_a, self.vertex_b, self.center, self.vertex_c]
+        # If statements ensures that
+        if x < 0:
+            x = 0
+        if y < 0:
+            y = 0
+
+        if x > int(screen.width/screen.columnsize) - 1:
+            x = int(screen.width/screen.columnsize) - 1
+        if y > int(screen.height/screen.rowsize) - 1:
+            y = int(screen.height/screen.rowsize) - 1
+
+        # To get the index for grid to array, use index = y * # of columns + x
+        index = int(y * int(screen.width/screen.columnsize) + x)
+
+        # Initializes the box index of boid
+        if self.boxindex == None:
+            self.boxindex = index
+            grouping[self.boxindex].append(self)
+
+        # Reconfigures box index of boid
+        if self.boxindex != index:
+            grouping[self.boxindex].remove(self)
+            self.boxindex = index
+            grouping[self.boxindex].append(self)
+
+    def compute_points(self):
+        vertex_a = screen.polar_to_cartesian(self.center, (self.size, self.rel_polar[1]))
+        distance = math.sqrt(self.size**2 + self.size**2)
+        vertex_b = screen.polar_to_cartesian(self.center, (distance, math.radians(math.degrees(self.rel_polar[1]) + 135)))
+        vertex_c = screen.polar_to_cartesian(self.center, (distance, math.radians(math.degrees(self.rel_polar[1]) - 135)))
+
+        self.points = [vertex_a, vertex_b, self.center, vertex_c]
 
     def update_rel_polar(self):
         if math.degrees(self.rel_polar[1]) > 360:
@@ -63,17 +95,18 @@ class Boid():
         self.center = (self.center[0] + (strength * self.rel_card[0]), self.center[1] + (strength * self.rel_card[1]))
 
     def update_Boid(self):
+        self.group_boid()
         self.update_rel_polar()
         self.go_to_dest()
         # self.update_vector()
         self.get_neighbors()
-        self.alignment()
+
+        # self.alignment()
         self.cohesion()
         self.separation()
+
         screen.move_boid(self)
         self.compute_points()
-        # self.compute_points()
-        # self.update_Points()
 
     def destroy(self):
         boid.points = []
@@ -85,22 +118,107 @@ class Boid():
         otherx = other.center[0]
         othery = other.center[1]
 
+        # print(self.center, other.center)
+        #
+        # print(math.sqrt((thisx - otherx)**2 + (thisy - othery)**2))
         return math.sqrt((thisx - otherx)**2 + (thisy - othery)**2)
 
     def get_neighbors(self):
         visionrange = self.vision
-        for boid in boids:
-            if self.get_distance(boid) <= visionrange and boid not in self.neighbors:
+
+        proportion = int(screen.width/screen.columnsize)
+
+        x = self.boxindex % proportion
+        y = self.boxindex // proportion
+
+        checkboids = []
+        if x > 0 and y > 0 and x < proportion - 1 and y < proportion - 1:
+            # print(x, y, ((y - 1) * screen.rowsize) + (x - 1))
+            checkboids += grouping[(y - 1) * proportion + (x - 1)]  # Top-left
+            checkboids += grouping[(y - 1) * proportion + x]  # Top-center
+            checkboids += grouping[(y - 1) * proportion + (x + 1)]  # Top-right
+            checkboids += grouping[y * proportion + (x - 1)]  # Left-center
+            checkboids += grouping[y * proportion + x]  # Center
+            checkboids += grouping[y * proportion + (x + 1)]  # Right-center
+            checkboids += grouping[(y + 1) * proportion + (x - 1)]  # Bottom-left
+            checkboids += grouping[(y + 1) * proportion + x]  # Bottom-center
+            checkboids += grouping[(y + 1) * proportion + (x + 1)]  # Bottom-right
+        if x < 1:
+            checkboids += grouping[y * proportion + x]  # Center
+            checkboids += grouping[y * proportion + (x + 1)]  # Right-center
+            if y < 1:
+                checkboids += grouping[(y + 1) * proportion + x]  # Bottom-center
+                checkboids += grouping[(y + 1) * proportion + (x + 1)]  # Bottom-right
+            elif y >= proportion - 1:
+                checkboids += grouping[(y - 1) * proportion + x]  # Top-center
+                checkboids += grouping[(y - 1) * proportion + (x + 1)]  # Top-right
+            else:
+                checkboids += grouping[(y + 1) * proportion + x]  # Bottom-center
+                checkboids += grouping[(y + 1) * proportion + (x + 1)]  # Bottom-right
+                checkboids += grouping[(y - 1) * proportion + x]  # Top-center
+                checkboids += grouping[(y - 1) * proportion + (x + 1)]  # Top-right
+
+        if x >= proportion - 1:
+            checkboids += grouping[y * proportion + x]  # Center
+            checkboids += grouping[y * proportion + (x - 1)]  # Left-center
+            if y < 1:
+                checkboids += grouping[(y + 1) * proportion + x]  # Bottom-center
+                checkboids += grouping[(y + 1) * proportion + (x - 1)]  # Bottom-left
+            elif y >= proportion - 1:
+                checkboids += grouping[(y - 1) * proportion + x]  # Top-center
+                checkboids += grouping[(y - 1) * proportion + (x - 1)]  # Top-left
+            else:
+                checkboids += grouping[(y + 1) * proportion + x]  # Bottom-center
+                checkboids += grouping[(y + 1) * proportion + (x - 1)]  # Bottom-left
+                checkboids += grouping[(y - 1) * proportion + x]  # Top-center
+                checkboids += grouping[(y - 1) * proportion + (x - 1)]  # Top-left
+
+        if y < 1:
+            checkboids += grouping[y * proportion + x]  # Center
+            checkboids += grouping[(y + 1) * proportion + x]  # Bottom-center
+            if x < 1:
+                checkboids += grouping[y * proportion + (x + 1)]  # Right-center
+                checkboids += grouping[(y + 1) * proportion + (x + 1)]  # Bottom-right
+            elif x >= proportion - 1:
+                checkboids += grouping[y * proportion + (x - 1)]  # Left-center
+                checkboids += grouping[(y + 1) * proportion + (x - 1)]  # Bottom-left
+            else:
+                checkboids += grouping[y * proportion + (x + 1)]  # Right-center
+                checkboids += grouping[(y + 1) * proportion + (x + 1)]  # Bottom-right
+                checkboids += grouping[y * proportion + (x - 1)]  # Left-center
+                checkboids += grouping[(y + 1) * proportion + (x - 1)]  # Bottom-left
+
+        if y >= proportion - 1:
+            checkboids += grouping[y * proportion + x]  # Center
+            checkboids += grouping[(y - 1) * proportion + x]  # Top-center
+            if x < 1:
+                checkboids += grouping[y * proportion + (x + 1)]  # Right-center
+                checkboids += grouping[(y - 1) * proportion + (x + 1)]  # Top-right
+            elif x >= proportion - 1:
+                checkboids += grouping[y * proportion + (x - 1)]  # Left-center
+                checkboids += grouping[(y - 1) * proportion + (x - 1)]  # Top-left
+            else:
+                checkboids += grouping[y * proportion + (x + 1)]  # Right-center
+                checkboids += grouping[(y - 1) * proportion + (x + 1)]  # Top-right
+                checkboids += grouping[y * proportion + (x - 1)]  # Left-center
+                checkboids += grouping[(y - 1) * proportion + (x - 1)]  # Top-left
+
+        for boid in checkboids:
+            screen.draw_grouping(self, boid)
+            if boid != self and self.get_distance(boid) <= visionrange and boid not in self.neighbors:
                 self.neighbors.append(boid)
                 boid.neighbors.append(self)
-                boid.color = RED
-                self.color = RED
+                # boid.color = RED
+                # self.color = RED
                 # screen.draw_boid(self)
             elif self.get_distance(boid) > visionrange and boid in self.neighbors:
                 self.neighbors.remove(boid)
                 boid.neighbors.remove(self)
-                boid.color = WHITE
-                self.color = WHITE
+                # boid.color = WHITE
+                # self.color = WHITE
+
+        for boid in self.neighbors:
+            screen.draw_neighbor(self, boid)
 
     def alignment(self):
         degree = 0
@@ -109,9 +227,10 @@ class Boid():
             degree += math.degrees(boid.rel_polar[1])
             count += 1
 
-        degreeavg = degree / count
+        if count > 0:
+            degreeavg = degree / count
 
-        self.rel_polar = (self.velocity, math.radians(degreeavg))
+            self.rel_polar = (self.velocity, math.radians(degreeavg))
 
 
     def cohesion(self):
@@ -124,16 +243,17 @@ class Boid():
             totalx, totaly = totalx + x, totaly + y
             count += 1
 
-        avgx, avgy = totalx / count, totaly / count
+        if count > 0:
+            avgx, avgy = totalx / count, totaly / count
 
-        self.dest_card = (avgx * self.cohesionX, avgy * self.cohesionX)
+            self.dest_card = (avgx * self.cohesionX, avgy * self.cohesionX)
 
     def separation(self):
-        # self.dest_card = self.center
+        self.dest_card = self.center
         if self.neighbors:
             for boid in self.neighbors:
-                x = self.center[0] - boid.center[0]
-                y = self.center[1] - boid.center[1]
+                x = (self.center[0] - boid.center[0]) / self.get_distance(boid)
+                y = (self.center[1] - boid.center[1]) / self.get_distance(boid)
                 self.dest_card = (self.dest_card[0] + x * self.separationX, self.dest_card[1] + y * self.separationX)
 
     def go_to_dest(self):
@@ -144,7 +264,7 @@ class Boid():
         distanceright = math.sqrt((right[0] - self.dest_card[0]) ** 2 + (right[1] - self.dest_card[1]) ** 2)
 
         polar = screen.cartesian_to_polar(self.dest_card)
-        strength = 1000/polar[0]
+        strength = 3000/polar[0]
         # print(polar[0], strength)
 
         # if polar[1] > 700 and polar[1] < 800:
@@ -159,13 +279,32 @@ class Canvas():
     def __init__(self):
         self.width, self.height = (1000, 1000)
         self.WIN = pg.display.set_mode((self.width, self.height))
+        self.columnsize, self.rowsize = 100, 100
         pg.display.flip()
+
+    def draw_grid(self):
+        for x in range(self.columnsize, self.width + 1, self.columnsize):
+            pg.draw.line(self.WIN, GREY, (x, 0), (x, self.height))
+        for y in range(self.rowsize, self.height + 1, self.rowsize):
+            pg.draw.line(self.WIN, GREY, (0, y), (self.width, y))
 
     def draw_boid(self, boid):
         pg.draw.polygon(self.WIN, boid.color, boid.points)
 
+    def draw_neighbor(self, boid, other):
+        if boid.highlight:
+            pg.draw.line(self.WIN, RED, boid.center, other.center, 5)
+
+    def draw_grouping(self, boid, other):
+        if boid.highlight:
+            pg.draw.line(self.WIN, GREEN, boid.center, other.center)
+            rect = pg.Rect((int(boid.center[0]//100) - 1) * 100, (int(boid.center[1]//100) -1) * 100, 300, 300)
+            pg.draw.rect(self.WIN, GREEN, rect, 3)
+
     def draw_vector(self, boid):
-        pg.draw.line(self.WIN, GREEN, boid.center, boid.dest_card)
+        if boid.highlight:
+            pg.draw.circle(self.WIN, RED, boid.center, boid.vision, width=1)
+            pg.draw.line(self.WIN, GREEN, boid.center, boid.dest_card, 1)
 
     def polar_to_cartesian(self, pos, polar):
         d, r = polar
@@ -386,6 +525,15 @@ screen = Canvas()
 
 test = [(500, 500), (450, 500), (500, 450)]
 
+# Initialize empty grouping array
+# number of grid boxes
+for x in range(100):
+    grouping.append([])
+
+print(len(grouping), "grouping")
+
+lastboid = None
+
 for x in range(100):
     # center = x
     center = (random.randrange(0, 1000), random.randrange(0, 1000))
@@ -394,6 +542,10 @@ for x in range(100):
     # pg.draw.circle(screen.WIN, RED, (500, 500), 15)
     # screen.draw_boid(boid)
     screen.rotate_boid(boid, random.randrange(0, 360))
+    lastboid = boid
+
+lastboid.color = RED
+lastboid.highlight = True
 
 screen.WIN.fill(BLACK)
 # for x in boids:
@@ -422,6 +574,7 @@ while running:
         # screen.rotate_boid(boid, random.randrange(-2, 3))
         # boid.compute_points()
         screen.draw_boid(boid)
+        screen.draw_grid()
         screen.draw_vector(boid)
 
     pg.display.update()
