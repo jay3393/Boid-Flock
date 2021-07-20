@@ -101,7 +101,7 @@ class Boid():
         # self.update_vector()
         self.get_neighbors()
 
-        # self.alignment()
+        self.alignment()
         self.cohesion()
         self.separation()
 
