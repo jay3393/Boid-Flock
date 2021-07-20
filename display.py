@@ -11,6 +11,7 @@ GREEN = (0, 255, 0)
 GREY = (150, 150, 150)
 
 boids = []
+walls = []
 grouping = []
 
 FPS = 60
@@ -18,23 +19,20 @@ FPS = 60
 class Boid():
     def __init__(self, center):
         self.size = 5
-        self.vision = 100
+        self.vision = 50
         self.center = center
-        self.velocity = 90 / FPS
+        self.velocity = 180 / FPS
 
         self.cohesionX = 1
-        self.separationX = 1
+        self.separationX = .5
         self.alignmentX = 1
 
         self.rel_polar = (self.velocity, math.radians(90))
-        self.rel_card = (random.randrange(-1 * screen.width, screen.width), random.randrange(-1 * screen.height, screen.height))
         self.dest_card = (500, 500)
 
         self.boxindex = None
 
         self.highlight = False
-
-        # print(f"Start Dest: {math.degrees(screen.cartesian_to_polar((self.dest_card[0] - self.center[0], self.dest_card[1] - self.center[1]))[1])}, Start MyDegree: {math.degrees(self.rel_polar[1])}")
 
         # The vertices to draw for the boid
         self.points = []
@@ -89,28 +87,19 @@ class Boid():
     def update_Points(self):
         self.points = [self.vertex_a, self.vertex_b, self.center, self.vertex_c]
 
-    def update_vector(self):
-        distance = math.sqrt((self.center[0] - self.rel_card[0])**2 + (self.center[1] - self.rel_card[1])**2)
-        strength = 1/distance
-        self.center = (self.center[0] + (strength * self.rel_card[0]), self.center[1] + (strength * self.rel_card[1]))
-
     def update_Boid(self):
         self.group_boid()
         self.update_rel_polar()
-        self.go_to_dest()
-        # self.update_vector()
         self.get_neighbors()
 
-        self.alignment()
+        self.look_at()
+
         self.cohesion()
         self.separation()
+        self.alignment()
 
         screen.move_boid(self)
         self.compute_points()
-
-    def destroy(self):
-        boid.points = []
-        boid.center = ()
 
     def get_distance(self, other):
         thisx = self.center[0]
@@ -118,9 +107,6 @@ class Boid():
         otherx = other.center[0]
         othery = other.center[1]
 
-        # print(self.center, other.center)
-        #
-        # print(math.sqrt((thisx - otherx)**2 + (thisy - othery)**2))
         return math.sqrt((thisx - otherx)**2 + (thisy - othery)**2)
 
     def get_neighbors(self):
@@ -208,24 +194,53 @@ class Boid():
             if boid != self and self.get_distance(boid) <= visionrange and boid not in self.neighbors:
                 self.neighbors.append(boid)
                 boid.neighbors.append(self)
-                # boid.color = RED
-                # self.color = RED
-                # screen.draw_boid(self)
             elif self.get_distance(boid) > visionrange and boid in self.neighbors:
                 self.neighbors.remove(boid)
                 boid.neighbors.remove(self)
-                # boid.color = WHITE
-                # self.color = WHITE
 
-        for boid in self.neighbors:
-            screen.draw_neighbor(self, boid)
+        if self.highlight:
+            for boid in self.neighbors:
+                screen.draw_neighbor(self, boid)
 
     def alignment(self):
+        avgdist = 0
+        avgdegree = 0
+        for boid in self.neighbors:
+            distance = self.get_distance(boid)
+            point = screen.polar_to_cartesian(boid.center, boid.rel_polar)
+            vector = (point[0] - boid.center[0], point[1] - boid.center[1])
+
+            x = vector[0]
+            y = vector[1]
+
+            self.dest_card = (self.dest_card[0] + x, self.dest_card[1] + y)
+
+        #     adjust = screen.cartesian_to_polar((x, y))
+        #     # print(x, y, adjust)
+        #
+        #     avgdist += 1/distance
+        #     avgdegree += adjust[1]
+        #
+        # count = len(self.neighbors)
+        #
+        # if count:
+        #     avgdist /= count
+        #     avgdegree /= count
+        #
+        #     card = screen.polar_to_cartesian(self.center, (avgdist, avgdegree))
+        #
+        #     self.dest_card = (self.dest_card[0] + card[0], self.dest_card[1] + card[1])
+
+    def alignments(self):
         degree = 0
-        count = 0
+        totalx, totaly = 0, 0
         for boid in self.neighbors:
             degree += math.degrees(boid.rel_polar[1])
-            count += 1
+            x = boid.center[0]
+            y = boid.center[1]
+            totalx, totaly = totalx + x, totaly + y
+
+        count = len(self.neighbors)
 
         if count > 0:
             degreeavg = degree / count
@@ -234,46 +249,38 @@ class Boid():
 
 
     def cohesion(self):
-        # self.dest_card = self.center
         totalx, totaly = 0, 0
-        count = 0
         for boid in self.neighbors:
             x = boid.center[0]
             y = boid.center[1]
             totalx, totaly = totalx + x, totaly + y
-            count += 1
+
+        count = len(self.neighbors)
 
         if count > 0:
             avgx, avgy = totalx / count, totaly / count
-
-            self.dest_card = (avgx * self.cohesionX, avgy * self.cohesionX)
+            self.dest_card = (avgx, avgy)
 
     def separation(self):
-        self.dest_card = self.center
+        self.dest_card = screen.polar_to_cartesian(self.center, (self.size * 5, self.rel_polar[1]))
+        # self.dest_card = self.center
         if self.neighbors:
             for boid in self.neighbors:
                 x = (self.center[0] - boid.center[0]) / self.get_distance(boid)
                 y = (self.center[1] - boid.center[1]) / self.get_distance(boid)
-                self.dest_card = (self.dest_card[0] + x * self.separationX, self.dest_card[1] + y * self.separationX)
+                self.dest_card = (self.dest_card[0] + (x * self.separationX), self.dest_card[1] + (y * self.separationX))
 
-    def go_to_dest(self):
-        left = screen.polar_to_cartesian(self.center, (self.velocity, math.radians(math.degrees(self.rel_polar[1]) - 1)))
-        right = screen.polar_to_cartesian(self.center, (self.velocity, math.radians(math.degrees(self.rel_polar[1]) + 1)))
+        if walls:
+            for wall in walls:
+                if self.get_distance(wall) <= wall.size * 1.5:
+                    x = (self.center[0] - wall.center[0]) / self.get_distance(wall)
+                    y = (self.center[1] - wall.center[1]) / self.get_distance(wall)
+                    self.dest_card = (self.dest_card[0] + (x * self.separationX), self.dest_card[1] + (y * self.separationX))
 
-        distanceleft = math.sqrt((left[0] - self.dest_card[0])**2 + (left[1] - self.dest_card[1])**2)
-        distanceright = math.sqrt((right[0] - self.dest_card[0]) ** 2 + (right[1] - self.dest_card[1]) ** 2)
-
-        polar = screen.cartesian_to_polar(self.dest_card)
-        strength = 3000/polar[0]
-        # print(polar[0], strength)
-
-        # if polar[1] > 700 and polar[1] < 800:
-        #     strength = 90
-
-        if distanceleft > distanceright:
-            self.rel_polar = (self.velocity, math.radians(math.degrees(self.rel_polar[1]) + strength))
-        else:
-            self.rel_polar = (self.velocity, math.radians(math.degrees(self.rel_polar[1]) - strength))
+    def look_at(self):
+        vector = (self.dest_card[0] - self.center[0], -(self.dest_card[1] - self.center[1]))
+        angle = screen.cartesian_to_polar(vector)
+        self.rel_polar = (self.rel_polar[0], angle[1])
 
 class Canvas():
     def __init__(self):
@@ -293,10 +300,10 @@ class Canvas():
 
     def draw_neighbor(self, boid, other):
         if boid.highlight:
-            pg.draw.line(self.WIN, RED, boid.center, other.center, 5)
+            pg.draw.line(self.WIN, RED, boid.center, other.center, 1)
 
     def draw_grouping(self, boid, other):
-        if boid.highlight:
+        if boid.highlight and False:
             pg.draw.line(self.WIN, GREEN, boid.center, other.center)
             rect = pg.Rect((int(boid.center[0]//100) - 1) * 100, (int(boid.center[1]//100) -1) * 100, 300, 300)
             pg.draw.rect(self.WIN, GREEN, rect, 3)
@@ -306,6 +313,9 @@ class Canvas():
             pg.draw.circle(self.WIN, RED, boid.center, boid.vision, width=1)
             pg.draw.line(self.WIN, GREEN, boid.center, boid.dest_card, 1)
 
+    def draw_wall(self, wall):
+        pg.draw.circle(self.WIN, RED, wall.center, wall.size, width = 0)
+
     def polar_to_cartesian(self, pos, polar):
         d, r = polar
         xc, yc = pos
@@ -313,12 +323,10 @@ class Canvas():
         x = xc + (d * math.cos(r))
         y = yc - (d * math.sin(r))
 
-        # print(x, y)
         return (x, y)
 
     def cartesian_to_polar(self, pos):
         x, y = pos
-
         distance = math.sqrt(x**2 + y**2)
 
         if x == 0 or y == 0:
@@ -346,68 +354,6 @@ class Canvas():
                 angle += 2 * (math.radians(180))
         # print(f"Polar: {distance, angle}")
         return (distance, angle)
-
-    # def cartesian_to_polar(self, boid):
-    #     polar_points = []
-    #     # print(f"Boid points: {boid.points}, Center: {boid.center}")
-    #
-    #     xc = boid.center[0]
-    #     yc = boid.center[1]
-    #
-    #     for point in boid.points:
-    #         xp = point[0]
-    #         yp = point[1]
-    #
-    #         x = xp - xc
-    #         y = yp - yc
-    #
-    #         distance = math.sqrt((xc - xp)** 2 + (yc - yp)** 2)
-    #
-    #         if x == 0:
-    #             if y < 0:
-    #                 # 270 degrees
-    #                 angle = math.radians(270)
-    #             else:
-    #                 angle = math.radians(90)
-    #         else:
-    #             angle = math.atan(y/x) # in radians
-    #             # If point is on the II or III quadrant, add pi
-    #             if y < 0 and x < 0 or y > 0 and x < 0:
-    #                 angle += math.radians(180)
-    #             # If point is on the IV quadrant, add 2 * pi
-    #             if y < 0 and x < 0:
-    #                 angle += 2 * (math.radians(180))
-    #
-    #         polar_points.append((distance, angle))
-    #
-    #     return polar_points
-
-    def rotate_boid(self, boid, degree):
-        polar = math.radians(degree)
-        # print(boid.rel_polar)
-        boid.rel_polar = (boid.rel_polar[0], boid.rel_polar[1] + polar)
-        boid.update_Boid()
-
-    # def rotate_boid(self, boid, degree): # degree is in degrees
-    #     polar_points = self.cartesian_to_polar(boid)
-    #     center = boid.center
-    #
-    #     degree = math.radians(degree)
-    #
-    #     cartesian_points = []
-    #
-    #     for polar_point in polar_points:
-    #         y = center[1] + (polar_point[0] * math.sin(polar_point[1] + degree))
-    #         x = center[0] + (polar_point[0] * math.cos(polar_point[1] + degree))
-    #
-    #         cartesian_points.append((x, y))
-    #
-    #     boid.vertex_a = cartesian_points[0]
-    #     boid.vertex_b = cartesian_points[1]
-    #     boid.vertex_c = cartesian_points[3]
-    #     boid.update_Points()
-    #
-    #     screen.draw_boid(boid)
 
     def get_vector(self, boid):
         center = boid.points[2]
@@ -442,25 +388,6 @@ class Canvas():
     def move_boid(self, boid):
         vector = self.polar_to_cartesian(boid.center, boid.rel_polar)
         boid.center = vector
-
-    # def move_boid(self, boid, velocity): # degree is in degrees
-    #     vector = self.get_vector(boid)
-    #
-    #     cartesian_points = []
-    #
-    #     for point in boid.points:
-    #         y = point[1] + vector[0] * math.sin(vector[1])
-    #         x = point[0] + vector[0] * math.cos(vector[1])
-    #
-    #         cartesian_points.append((x, y))
-    #
-    #     boid.vertex_a = cartesian_points[0]
-    #     boid.vertex_b = cartesian_points[1]
-    #     boid.vertex_c = cartesian_points[3]
-    #     boid.center = cartesian_points[2]
-    #     boid.update_Points()
-    #
-    #     screen.draw_boid(boid)
 
     # work on this, terrible integration
     def check_edge(self, boid):
@@ -510,15 +437,11 @@ class Canvas():
             boid.center = points[2]
             boid.update_Points()
 
-def check_mouse(mouse):
-    mx, my = mouse
-    threshold = 200
-    for boid in boids:
-        if int(math.sqrt((boid.center[0] - mx)** 2 + (boid.center[1] - my)** 2)) <= threshold:
-            boid.color = GREEN
-        if int(math.sqrt((boid.center[0] - mx) ** 2 + (boid.center[1] - my) ** 2)) > threshold:
-            # boid.color = WHITE
-            pass
+class Wall():
+    def __init__(self, center):
+        self.size = 100
+        self.center = center
+        walls.append(self)
 
 running = True
 screen = Canvas()
@@ -539,9 +462,7 @@ for x in range(100):
     center = (random.randrange(0, 1000), random.randrange(0, 1000))
     # center = (500, 500)
     boid = Boid(center)
-    # pg.draw.circle(screen.WIN, RED, (500, 500), 15)
-    # screen.draw_boid(boid)
-    screen.rotate_boid(boid, random.randrange(0, 360))
+    boid.rel_polar = (boid.rel_polar[0], boid.rel_polar[1] + math.radians(random.randrange(0, 361)))
     lastboid = boid
 
 lastboid.color = RED
@@ -551,7 +472,11 @@ screen.WIN.fill(BLACK)
 # for x in boids:
 #     screen.draw_boid(x)
 
+oldTime = time.time()
+
 while running:
+    delta = time.time() - oldTime
+    oldTime = time.time()
     for event in pg.event.get():
         if event.type == pg.QUIT:
             running = False
@@ -560,22 +485,28 @@ while running:
     # check_mouse(mouse)
 
     if pg.mouse.get_pressed()[0]:
-        # print("clicked")
         mousepos = pg.mouse.get_pos()
-        for boid in boids:
-            boid.dest_card = mousepos
+        # for boid in boids:
+        #     boid.dest_card = mousepos
+        wall = Wall(mousepos)
+        screen.draw_wall(wall)
+
 
     screen.WIN.fill(BLACK)
 
     for boid in boids:
         screen.check_edge(boid)
+
+        boid.rel_polar = (boid.rel_polar[0], boid.rel_polar[1] + math.radians(random.randrange(-2, 3)))
+
         boid.update_Boid()
-        # boid.rel_polar = (boid.rel_polar[0], boid.rel_polar[1] + math.radians(random.randrange(-2, 3)))
-        # screen.rotate_boid(boid, random.randrange(-2, 3))
-        # boid.compute_points()
+
         screen.draw_boid(boid)
         screen.draw_grid()
         screen.draw_vector(boid)
 
+    for wall in walls:
+        screen.draw_wall(wall)
+
     pg.display.update()
-    time.sleep(1/FPS)
+    # time.sleep(1/FPS)
