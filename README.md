@@ -15,4 +15,5 @@ Watch the interaction between a flock and a predator
 
 **References** http://www.kfish.org/boids/pseudocode.html (Made using pseudocode)
 
-![ezgif com-gif-maker (5)](https://user-images.githubusercontent.com/60624849/126925001-3737e8df-ba97-4707-8f9d-aceeb307b9b1.gif)
+![ezgif com-gif-maker (6)](https://user-images.githubusercontent.com/60624849/126934216-2dc073f7-42d4-45d7-8ec0-2959dafae206.gif)
+
