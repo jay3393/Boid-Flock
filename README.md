@@ -3,7 +3,7 @@ Flocking simulation using 2dVector and Polar coordinates
 Created 2 different versions
 
 ##### Click to place a wall
-Watch the interaction between a flock and a wall
+Watch the interaction between a flock and a wall</br>
 Uses a grouping and grid system to minimize checks for neighbors (optimizes O(n^2) to O(n))
 
 **References** https://en.wikipedia.org/wiki/Boids
