@@ -90,11 +90,17 @@ class Boid():
         v1 = self.alignment()
         v2 = self.separation()
         v3 = self.cohesion()
+        v4 = self.run_from_predator()
 
         self.bound_position()
 
-        self.velocity = self.velocity + v1 + v2 + v3
-        self.position += self.velocity
+        # Checks whether predator is chasing a boid, if it is, ignore all previous flock behaviors and just flee
+        if v4.tuple[0] == 0 and v4.tuple[1] == 0:
+            self.velocity = self.velocity + v1 + v2 + v3
+            self.position += self.velocity
+        else:
+            self.velocity = self.velocity + v4
+            self.position += self.velocity
 
         # Limit velocity, might need fixing
         if abs(self.velocity) > MAX_VELOCITY:
@@ -126,14 +132,10 @@ class Boid():
         if self.predator:
             return Vector2d(0, 0)
         v2 = Vector2d(0, 0)
-        predator_found = False
+
         for boid in self.neighbors:
-            if not predator_found:
+            if not boid.predator:
                 v2 += (self.position - boid.position) / self.position.distance_to(boid.position)
-                if boid.predator:
-                    predator_found = True
-                    v2 = Vector2d(0, 0)
-                    v2 += (boid.position - self.position) * 0.001
 
         v2 *= SEPARATION_COEF
 
@@ -147,8 +149,8 @@ class Boid():
             return v1
 
         for boid in self.neighbors:
-            # if not boid.predator:
-            v1 += boid.position
+            if not boid.predator:
+                v1 += boid.position
 
         v1 /= len(self.neighbors)
         v1 = (v1 - self.position) / COHESION_COEF
@@ -165,6 +167,14 @@ class Boid():
             self.velocity.y += 1
         elif self.position.y > screen.width:
             self.velocity.y += -1
+
+    def run_from_predator(self):
+        v4 = Vector2d(0, 0)
+        for boid in self.neighbors:
+            if boid.predator:
+                v4 += (self.position - boid.position) * 0.05
+                # v4 += boid.velocity
+        return v4
 
 class Canvas():
     def __init__(self, dim_x, dim_y):
