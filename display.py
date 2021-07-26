@@ -21,11 +21,13 @@ class Boid():
         self.size = 5
         self.vision = 50
         self.center = center
-        self.velocity = 180 / FPS
+        self.velocity = 210 / FPS
 
         self.cohesionX = 1
-        self.separationX = .5
+        self.separationX = .1
         self.alignmentX = 1
+        self.reject_strength = 5
+        self.reject_size_multiplier = 1.1
 
         self.rel_polar = (self.velocity, math.radians(90))
         self.dest_card = (500, 500)
@@ -203,8 +205,6 @@ class Boid():
                 screen.draw_neighbor(self, boid)
 
     def alignment(self):
-        avgdist = 0
-        avgdegree = 0
         for boid in self.neighbors:
             distance = self.get_distance(boid)
             point = screen.polar_to_cartesian(boid.center, boid.rel_polar)
@@ -214,39 +214,6 @@ class Boid():
             y = vector[1]
 
             self.dest_card = (self.dest_card[0] + x, self.dest_card[1] + y)
-
-        #     adjust = screen.cartesian_to_polar((x, y))
-        #     # print(x, y, adjust)
-        #
-        #     avgdist += 1/distance
-        #     avgdegree += adjust[1]
-        #
-        # count = len(self.neighbors)
-        #
-        # if count:
-        #     avgdist /= count
-        #     avgdegree /= count
-        #
-        #     card = screen.polar_to_cartesian(self.center, (avgdist, avgdegree))
-        #
-        #     self.dest_card = (self.dest_card[0] + card[0], self.dest_card[1] + card[1])
-
-    def alignments(self):
-        degree = 0
-        totalx, totaly = 0, 0
-        for boid in self.neighbors:
-            degree += math.degrees(boid.rel_polar[1])
-            x = boid.center[0]
-            y = boid.center[1]
-            totalx, totaly = totalx + x, totaly + y
-
-        count = len(self.neighbors)
-
-        if count > 0:
-            degreeavg = degree / count
-
-            self.rel_polar = (self.velocity, math.radians(degreeavg))
-
 
     def cohesion(self):
         totalx, totaly = 0, 0
@@ -272,10 +239,10 @@ class Boid():
 
         if walls:
             for wall in walls:
-                if self.get_distance(wall) <= wall.size * 1.5:
+                if self.get_distance(wall) <= wall.size * self.reject_size_multiplier:
                     x = (self.center[0] - wall.center[0]) / self.get_distance(wall)
                     y = (self.center[1] - wall.center[1]) / self.get_distance(wall)
-                    self.dest_card = (self.dest_card[0] + (x * self.separationX), self.dest_card[1] + (y * self.separationX))
+                    self.dest_card = (self.dest_card[0] + (x * self.reject_strength), self.dest_card[1] + (y * self.reject_strength))
 
     def look_at(self):
         vector = (self.dest_card[0] - self.center[0], -(self.dest_card[1] - self.center[1]))
@@ -300,18 +267,18 @@ class Canvas():
 
     def draw_neighbor(self, boid, other):
         if boid.highlight:
-            pg.draw.line(self.WIN, RED, boid.center, other.center, 1)
+            pg.draw.line(self.WIN, RED, boid.center, other.center, 3)
 
     def draw_grouping(self, boid, other):
-        if boid.highlight and False:
+        if boid.highlight:
             pg.draw.line(self.WIN, GREEN, boid.center, other.center)
             rect = pg.Rect((int(boid.center[0]//100) - 1) * 100, (int(boid.center[1]//100) -1) * 100, 300, 300)
             pg.draw.rect(self.WIN, GREEN, rect, 3)
 
     def draw_vector(self, boid):
         if boid.highlight:
-            pg.draw.circle(self.WIN, RED, boid.center, boid.vision, width=1)
-            pg.draw.line(self.WIN, GREEN, boid.center, boid.dest_card, 1)
+            pg.draw.circle(self.WIN, RED, boid.center, boid.vision, width=3)
+            pg.draw.line(self.WIN, BLUE, boid.center, boid.dest_card, 3)
 
     def draw_wall(self, wall):
         pg.draw.circle(self.WIN, RED, wall.center, wall.size, width = 0)

@@ -101,6 +101,8 @@ class Boid():
             self.velocity = (self.velocity / abs(self.velocity)) * MAX_VELOCITY
 
     def get_neighbors(self):
+        if self.predator:
+            return
         for boid in flock:
             if boid not in self.neighbors and boid.position.distance_to(self.position) <= self.vision_range and boid != self:
                 self.neighbors.append(boid)
@@ -114,7 +116,8 @@ class Boid():
             return Vector2d(0, 0)
         v3 = Vector2d(0, 0)
         for boid in self.neighbors:
-            v3 += boid.velocity
+            if not boid.predator:
+                v3 += boid.velocity
 
         v3 *= ALIGNMENT_COEF
         return v3
@@ -123,11 +126,14 @@ class Boid():
         if self.predator:
             return Vector2d(0, 0)
         v2 = Vector2d(0, 0)
+        predator_found = False
         for boid in self.neighbors:
-            v2 += (self.position - boid.position) / self.position.distance_to(boid.position)
-            if boid.predator:
-                v2 += (boid.position - self.position) * 0.005
-
+            if not predator_found:
+                v2 += (self.position - boid.position) / self.position.distance_to(boid.position)
+                if boid.predator:
+                    predator_found = True
+                    v2 = Vector2d(0, 0)
+                    v2 += (boid.position - self.position) * 0.001
 
         v2 *= SEPARATION_COEF
 
@@ -141,6 +147,7 @@ class Boid():
             return v1
 
         for boid in self.neighbors:
+            # if not boid.predator:
             v1 += boid.position
 
         v1 /= len(self.neighbors)
