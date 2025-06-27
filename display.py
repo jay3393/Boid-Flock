@@ -380,7 +380,7 @@ class Canvas():
             if y < 0 and x < 0 or y > 0 and x < 0:
                 angle += math.radians(180)
             # If point is on the IV quadrant, add 2 * pi
-            if y < 0 and x < 0:
+            if y < 0 and x > 0:
                 angle += 2 * (math.radians(180))
 
         return (distance, angle)
