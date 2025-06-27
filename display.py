@@ -3,6 +3,8 @@ import random
 import math
 import time
 
+pg.init()
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
@@ -13,6 +15,11 @@ GREY = (150, 150, 150)
 boids = []
 walls = []
 grouping = []
+
+# UI state variables
+show_walls = True
+show_grid = True
+wall_alpha = 255
 
 FPS = 60
 
@@ -286,6 +293,8 @@ class Canvas():
     def __init__(self):
         self.width, self.height = (1000, 1000)
         self.WIN = pg.display.set_mode((self.width, self.height))
+        # Surface used for drawing semi-transparent walls
+        self.wall_surface = pg.Surface((self.width, self.height), pg.SRCALPHA)
         self.columnsize, self.rowsize = 100, 100
         pg.display.flip()
 
@@ -313,8 +322,9 @@ class Canvas():
             pg.draw.circle(self.WIN, RED, boid.center, boid.vision, width=1)
             pg.draw.line(self.WIN, GREEN, boid.center, boid.dest_card, 1)
 
-    def draw_wall(self, wall):
-        pg.draw.circle(self.WIN, RED, wall.center, wall.size, width = 0)
+    def draw_wall(self, wall, alpha):
+        color = (255, 0, 0, alpha)
+        pg.draw.circle(self.wall_surface, color, wall.center, wall.size)
 
     def polar_to_cartesian(self, pos, polar):
         d, r = polar
@@ -437,6 +447,20 @@ class Canvas():
             boid.center = points[2]
             boid.update_Points()
 
+def draw_ui():
+    wall_color = GREEN if show_walls else GREY
+    pg.draw.rect(screen.WIN, wall_color, wall_toggle_rect)
+    screen.WIN.blit(font.render('Walls', True, WHITE), (wall_toggle_rect.right + 5, wall_toggle_rect.y))
+
+    grid_color = GREEN if show_grid else GREY
+    pg.draw.rect(screen.WIN, grid_color, grid_toggle_rect)
+    screen.WIN.blit(font.render('Grid', True, WHITE), (grid_toggle_rect.right + 5, grid_toggle_rect.y))
+
+    pg.draw.rect(screen.WIN, GREY, slider_rect, 2)
+    handle_x = slider_rect.x + int((wall_alpha / 255) * slider_rect.width)
+    pg.draw.circle(screen.WIN, RED, (handle_x, slider_rect.y + slider_rect.height//2), 5)
+    screen.WIN.blit(font.render('Wall Alpha', True, WHITE), (slider_rect.right + 5, slider_rect.y - 5))
+
 class Wall():
     def __init__(self, center):
         self.size = 100
@@ -445,6 +469,16 @@ class Wall():
 
 running = True
 screen = Canvas()
+
+# UI rectangles and fonts
+font = pg.font.SysFont(None, 24)
+toggle_size = 20
+ui_start_x = screen.width - 150
+ui_start_y = screen.height - 90
+wall_toggle_rect = pg.Rect(ui_start_x, ui_start_y, toggle_size, toggle_size)
+grid_toggle_rect = pg.Rect(ui_start_x, ui_start_y + 30, toggle_size, toggle_size)
+slider_rect = pg.Rect(ui_start_x, ui_start_y + 60, 100, 10)
+dragging_slider = False
 
 test = [(500, 500), (450, 500), (500, 450)]
 
@@ -480,33 +514,47 @@ while running:
     for event in pg.event.get():
         if event.type == pg.QUIT:
             running = False
+        elif event.type == pg.MOUSEBUTTONDOWN:
+            if wall_toggle_rect.collidepoint(event.pos):
+                show_walls = not show_walls
+            elif grid_toggle_rect.collidepoint(event.pos):
+                show_grid = not show_grid
+            elif slider_rect.collidepoint(event.pos):
+                dragging_slider = True
+        elif event.type == pg.MOUSEBUTTONUP:
+            dragging_slider = False
+        elif event.type == pg.MOUSEMOTION and dragging_slider:
+            rel_x = max(0, min(slider_rect.width, event.pos[0] - slider_rect.x))
+            wall_alpha = int((rel_x / slider_rect.width) * 255)
 
     # mouse = pg.mouse.get_pos()
     # check_mouse(mouse)
 
-    if pg.mouse.get_pressed()[0]:
+    if pg.mouse.get_pressed()[0] and not dragging_slider:
         mousepos = pg.mouse.get_pos()
-        # for boid in boids:
-        #     boid.dest_card = mousepos
-        wall = Wall(mousepos)
-        screen.draw_wall(wall)
+        if mousepos[0] < ui_start_x:
+            wall = Wall(mousepos)
 
 
     screen.WIN.fill(BLACK)
 
+    if show_grid:
+        screen.draw_grid()
+
     for boid in boids:
         screen.check_edge(boid)
-
         boid.rel_polar = (boid.rel_polar[0], boid.rel_polar[1] + math.radians(random.randrange(-2, 3)))
-
         boid.update_Boid()
-
         screen.draw_boid(boid)
-        screen.draw_grid()
         screen.draw_vector(boid)
 
-    for wall in walls:
-        screen.draw_wall(wall)
+    if show_walls:
+        screen.wall_surface.fill((0, 0, 0, 0))
+        for wall in walls:
+            screen.draw_wall(wall, wall_alpha)
+        screen.WIN.blit(screen.wall_surface, (0, 0))
+
+    draw_ui()
 
     pg.display.update()
     # time.sleep(1/FPS)
